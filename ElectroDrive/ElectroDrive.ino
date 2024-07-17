@@ -60,6 +60,8 @@ const int freq = 30000;
 const int pwmChannel = 0;
 const int resolution = 8;
 int dutyCycle = 255;
+unsigned long lastMsg = 0;
+unsigned long interval = 5000;
 
 byte mac[6];
 String MACAddress;
@@ -286,44 +288,47 @@ void reconnect() {
 }
 
 void loop() {
-  {
-    String pubmsg = "";
-    if (!client.connected()) {
-      reconnect();
+
+  String pubmsg = "";
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+
+  unsigned long now = millis();
+  if (now - lastMsg > interval) {
+    lastMsg = now;
+    int adcsum = 0;
+    for (int i = 0; i < num; i++) {
+      adcsum += analogRead(Vout);
+      delay(10);
     }
-    client.loop();
+    int adcaverage = adcsum / num;
+    float voltage_raw = (5.0 / 4095.0) * adcaverage;  // Read the voltage from sensor
+    voltage = voltage_raw - QOV - 1.084;              // 0.007 is a value to make voltage zero when there is no current
+    float current = voltage / FACTOR;
+    Serial.println(voltage, 3);
+    DynamicJsonDocument Current(100);
+    char outC[110];
+    if (abs(voltage) > cutOff) {
+      Serial.print(" I: ");
+      Serial.print(current, 2);  // print the current with 2 decimal places
+      Serial.println("A");
+      String currentStr = String(current, 2);
+      Current["guid"] = input_guid;
+      Current["mac"] = WiFi.macAddress();
+      Current["current"] = currentStr;
+      serializeJson(Current, outC);
+      client.publish(mqttQueueSensor, outC);
+      delay(1000);
+    } else {
+      Serial.println("No Current");
+      Current["guid"] = input_guid;
+      Current["mac"] = WiFi.macAddress();
+      Current["current"] = "0";
+      serializeJson(Current, outC);
+      client.publish(mqttQueueSensor, outC);
+
+    }
   }
-  int adcsum = 0;
-  for (int i = 0; i < num; i++) {
-    adcsum += analogRead(Vout);
-    delay(10);
-  }
-  int adcaverage = adcsum / num;
-  float voltage_raw = (5.0 / 4095.0) * adcaverage;  // Read the voltage from sensor
-  voltage = voltage_raw - QOV - 1.029;              // 0.007 is a value to make voltage zero when there is no current
-  float current = voltage / FACTOR;
-  Serial.println(voltage, 3);
-  DynamicJsonDocument Current(100);
-  char outC[110];
-  if (abs(voltage) > cutOff) {
-    Serial.print(" I: ");
-    Serial.print(current, 2);  // print the current with 2 decimal places
-    Serial.println("A");
-    String currentStr = String(current, 2);
-    Current["guid"] = input_guid;
-    Current["mac"] = WiFi.macAddress();
-    Current["current"] = currentStr;
-    serializeJson(Current, outC);
-    client.publish(mqttQueueSensor, outC);
-    delay(1000);
-  } else {
-    Serial.println("No Current");
-    Current["guid"] = input_guid;
-    Current["mac"] = WiFi.macAddress();
-    Current["current"] = "0";
-    serializeJson(Current, outC);
-    client.publish(mqttQueueSensor, outC);
-    delay(5000);
-  }
-  delay(500);
 }
