@@ -8,7 +8,7 @@
 bool shouldSaveConfig = false;
 
 // const char* ssid = "LSKK_Lantai2";
-// const char* password = "lskk12345";
+// const char* password 
 const char* mqtt_server = "rmq2.pptik.id";
 const char* mqtt_user = "*********";
 const char* mqtt_pass = "*********";
